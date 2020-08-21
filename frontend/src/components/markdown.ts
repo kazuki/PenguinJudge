@@ -1,11 +1,9 @@
 import Marked from 'marked';
-import { customElement, LitElement, property, html, css, unsafeCSS } from 'lit-element';
+import { customElement, LitElement, property, html, css } from 'lit-element';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 
 // @ts-ignore
 import renderMathInElement from 'katex/contrib/auto-render/auto-render';
-
-const katex_css = require('katex/dist/katex.min.css').toString();
 
 @customElement('x-markdown')
 export class MarkdownElement extends LitElement {
@@ -13,7 +11,10 @@ export class MarkdownElement extends LitElement {
   value = '';
 
   render() {
-    return html`${unsafeHTML(Marked(this.value))}`;
+    return html`
+      <link rel="stylesheet" href="katex.min.css" />
+      ${unsafeHTML(Marked(this.value))}
+    `;
   }
 
   updated() {
@@ -49,7 +50,6 @@ export class MarkdownElement extends LitElement {
     span:not(.katex-display) > span.katex {
       margin: 0 0.2em;
     }
-    ${unsafeCSS(katex_css)}
     `;
   }
 }
