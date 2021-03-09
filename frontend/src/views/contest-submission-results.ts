@@ -39,6 +39,11 @@ export class PenguinJudgeContestSubmissionResults extends LitElement {
     this.loadSubmissions();
   }
 
+  updateFilter() {
+    this.page_index = 1;
+    this.loadSubmissions();
+  }
+
   loadSubmissions() {
     const query = new Map<string, string>();
     query.set('page', this.page_index.toString());
@@ -104,21 +109,21 @@ export class PenguinJudgeContestSubmissionResults extends LitElement {
       <table id="submission_list">
         <thead><tr><td colspan="9" id="filter-column"><div>
             <label for="problem-filter">問題:</label>
-            <select id="problem-filter" @input="${this.loadSubmissions}">
+            <select id="problem-filter" @input="${this.updateFilter}">
               <option value="" selected>-</option>
               ${session.contest.problems.map(p => {
                 return html`<option value="${p.id}">${p.id}: ${p.title}</option>`;
               })}
             </select>
             <label for="env-filter">言語:</label>
-            <select id="env-filter" @input="${this.loadSubmissions}">
+            <select id="env-filter" @input="${this.updateFilter}">
               <option value="" selected>-</option>
               ${session.environments.map(e => {
                 return html`<option value="${e.id}">${e.name}</option>`;
               })}
             </select>
             <label for="status-filter">結果:</label>
-            <select id="status-filter" @input="${this.loadSubmissions}">
+            <select id="status-filter" @input="${this.updateFilter}">
               <option value="" selected>-</option>
               <option value="Accepted">AC</option>
               <option value="WrongAnswer">WA</option>
@@ -132,7 +137,7 @@ export class PenguinJudgeContestSubmissionResults extends LitElement {
             </select>
             <label for="user-filter">ユーザ:</label>
             <input id="user-filter" type="text">
-            <button @click="${this.loadSubmissions}">フィルタ</button>
+            <button @click="${this.updateFilter}">フィルタ</button>
           </div></td></tr><tr>
           <td><a @click="${() => this._sort('created')}">提出日時</a></td>
           <td>問題</td>
