@@ -426,7 +426,7 @@ paths:
                   type: string
   /contests/{contest_id}/problems/{problem_id}/tests/{test_id}/in:
     get:
-      operationId: getTestData
+      operationId: getTestInData
       description: 問題のテスト用入力データを返却します
       security:
         - BearerAuth: []
@@ -443,7 +443,7 @@ paths:
             '*/*': {}
   /contests/{contest_id}/problems/{problem_id}/tests/{test_id}/out:
     get:
-      operationId: getTestData
+      operationId: getTestOutData
       description: 問題のテスト用出力データを返却します
       security:
         - BearerAuth: []
