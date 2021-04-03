@@ -1,0 +1,7 @@
+/htmlconv
+/tests
+/*.egg-info
+/.coverage*
+/.mypy_cache
+/Dockerfile
+/.dockerignore
