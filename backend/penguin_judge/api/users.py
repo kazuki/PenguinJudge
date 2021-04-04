@@ -18,7 +18,9 @@ from penguin_judge.db import Tx, start_transaction
 router = APIRouter()
 
 
-@router.post('', response_model=schemas.User, status_code=201, response_model_exclude_none=True)
+@router.post(
+    '', response_model=schemas.User, status_code=201, response_model_exclude_none=True
+)
 async def register_user(
     body: schemas.UserRegistration,
     _: Claims = Depends(require_admin_token),
@@ -52,7 +54,9 @@ async def get_user(
     return u.to_summary_dict()
 
 
-@router.patch('/{user_id}', response_model=schemas.User, response_model_exclude_none=True)
+@router.patch(
+    '/{user_id}', response_model=schemas.User, response_model_exclude_none=True
+)
 async def update_user(
     user_id: int,
     patch: schemas.UserUpdate,

@@ -48,3 +48,27 @@ class UserUpdate(BaseModel):
 
 class UserRegistration(UserBase, Login):
     pass
+
+
+class EnvironmentBase(BaseModel):
+    name: str = Field(...)
+    active: bool = Field(True)
+    published: bool = Field(False)
+    compile_image_name: Optional[str] = Field(None)
+
+
+class Environment(EnvironmentBase):
+    id: int = Field(...)
+    test_image_name: Optional[str] = Field(None)
+
+
+class EnvironmentCreation(EnvironmentBase):
+    test_image_name: str = Field(...)
+
+
+class EnvironmentUpdate(BaseModel):
+    name: Optional[str]
+    active: Optional[bool]
+    published: Optional[bool]
+    compile_image_name: Optional[str]
+    test_image_name: Optional[str]

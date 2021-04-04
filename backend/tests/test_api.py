@@ -134,20 +134,41 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(app.patch(f'/users/{user_id}', json={'old_password': pw2, 'new_password': pw}).status_code, 200)
         self.assertEqual(app.patch(f'/users/1', json={}).status_code, 403)
 
-    '''
-    def test_list_environments(self):
-        envs = app.get('/environments').json
+    def test_environments(self):
+        envs = app.get('/environments').json()
         self.assertEqual(envs, [])
 
-        env = dict(name='Python 3.7', test_image_name='docker-image',
-                   published=True)
-        with transaction() as s:
-            s.add(Environment(**env))
-        envs = app.get('/environments').json
+        data = dict(name='Python 3.7', test_image_name='docker-image', published=True)
+        self.assertEqual(app.post('/environments', json=data).status_code, 401)
+        resp = app.post('/environments', json=data, headers=self.admin_headers).json()
+        for k in data.keys():
+            self.assertEqual(resp[k], data[k])
+        envs = app.get('/environments').json()
         self.assertEqual(len(envs), 1)
         self.assertIsInstance(envs[0]['id'], int)
-        self.assertEqual(envs[0]['name'], env['name'])
+        self.assertEqual(envs[0]['name'], data['name'])
 
+        envs = app.get('/environments', headers=self.admin_headers).json()
+        self.assertEqual(len(envs), 1)
+        self.assertIsInstance(envs[0]['id'], int)
+        for k in data.keys():
+            self.assertEqual(resp[k], data[k])
+
+        env = app.patch(f'/environments/{envs[0]["id"]}', json={}, headers=self.admin_headers).json()
+        self.assertEqual(env, envs[0])
+        env = app.patch(f'/environments/{envs[0]["id"]}', json={'name': 'hoge'}, headers=self.admin_headers).json()
+        self.assertEqual(env['name'], 'hoge')
+        envs = app.get('/environments').json()
+        self.assertEqual(envs[0]['name'], 'hoge')
+        self.assertEqual(app.patch('/environments/12345', json={}, headers=self.admin_headers).status_code, 404)
+        self.assertEqual(app.patch('/environments/12345', json={'name': 'hoge'}, headers=self.admin_headers).status_code, 404)
+
+        self.assertEqual(app.delete(f'/environments/{envs[0]["id"]}').status_code, 401)
+        self.assertEqual(app.delete(f'/environments/{envs[0]["id"]}', headers=self.admin_headers).status_code, 204)
+        envs = app.get('/environments').json()
+        self.assertEqual(envs, [])
+
+    '''
     def test_create_list_modify_contest(self):
         def _post(body, status=None):
             return app.post_json('/contests', body, headers=self.admin_headers,

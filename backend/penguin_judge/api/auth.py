@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from hashlib import pbkdf2_hmac
 import secrets
-from typing import Optional, Tuple
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import APIKeyCookie
@@ -54,23 +54,25 @@ async def _validate_token(
     required_by_config: bool = False,
 ) -> Optional[Claims]:
     assert required or admin_required or required_by_config
-    if not required and not admin_required and required_by_config:
-        if not config.auth_required:
-            return None
-        required = True
+    if required_by_config:
+        required = config.auth_required
     utc_now = datetime.now(tz=timezone.utc)
-    ret: Optional[Tuple[datetime, m.User]] = await (
-        await tx.session.stream(
-            sa.select([m.Token.expires, m.User]).where(
-                sa.and_(m.Token.token == token, m.Token.user_id == m.User.id)
+    u: Optional[m.User] = await tx.session.scalar(
+        sa.select(m.User).where(
+            sa.and_(
+                m.Token.token == token,
+                m.Token.expires > utc_now,
+                m.Token.user_id == m.User.id,
             )
         )
-    ).first()
-    if not ret or ret[0] <= utc_now:
-        raise HTTPException(status_code=401)
-    if admin_required and not ret[1].admin:
-        raise HTTPException(status_code=401)
-    return Claims(login_id=ret[1].login_id, **ret[1].to_summary_dict())
+    )
+    if not u:
+        if admin_required or required:
+            raise HTTPException(status_code=401)
+        return None
+    if admin_required and not u.admin:
+        raise HTTPException(status_code=403)
+    return Claims(login_id=u.login_id, **u.to_summary_dict())
 
 
 async def require_token(
