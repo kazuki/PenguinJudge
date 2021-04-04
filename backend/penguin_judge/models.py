@@ -8,14 +8,14 @@ from sqlalchemy import (
     func, ForeignKeyConstraint, Index)
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import scoped_session, sessionmaker
+# from sqlalchemy.orm import scoped_session, sessionmaker
 
 Base = declarative_base()
-Session = scoped_session(sessionmaker())
+# Session = scoped_session(sessionmaker())
 _config: Dict[str, str] = {}
 
 
-class JudgeStatus(enum.Enum):
+class JudgeStatus(enum.IntEnum):
     Waiting = 0x00
     Running = 0x01
     Accepted = 0x10
@@ -55,21 +55,21 @@ class _Exportable(object):
 class User(Base, _Exportable):
     __tablename__ = 'users'
     __summary_keys__ = ['id', 'name', 'created', 'admin']
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    login_id = Column(String, nullable=False, unique=True)
-    name = Column(String, nullable=False, unique=True)
-    salt = Column(LargeBinary(32), nullable=False)
-    password = Column(LargeBinary(32), nullable=False)
-    admin = Column(Boolean, server_default='False')
-    created = Column(
+    id: int = Column(Integer, primary_key=True, autoincrement=True)
+    login_id: str = Column(String, nullable=False, unique=True)
+    name: str = Column(String, nullable=False, unique=True)
+    salt: bytes = Column(LargeBinary(32), nullable=False)
+    password: bytes = Column(LargeBinary(32), nullable=False)
+    admin: bool = Column(Boolean, server_default='False')
+    created: datetime.datetime = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 class Token(Base, _Exportable):
     __tablename__ = 'tokens'
-    token = Column(LargeBinary(32), primary_key=True)
-    user_id = Column(Integer, nullable=False)
-    expires = Column(DateTime(timezone=True), nullable=False)
+    token: bytes = Column(LargeBinary(32), primary_key=True)
+    user_id: int = Column(Integer, nullable=False)
+    expires: datetime.datetime = Column(DateTime(timezone=True), nullable=False)
     __table_args__ = (
         ForeignKeyConstraint([user_id], [User.id]),  # type: ignore
     )
@@ -80,12 +80,12 @@ class Environment(Base, _Exportable):
     __summary_keys__ = ['id', 'name', 'active']
     __updatable_keys__ = [
         'name', 'active', 'published', 'compile_image_name', 'test_image_name']
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
-    active = Column(Boolean, server_default='True')
-    published = Column(Boolean, server_default='False')
+    id: int = Column(Integer, primary_key=True)
+    name: str = Column(String, nullable=False)
+    active: bool = Column(Boolean, server_default='True')
+    published: bool = Column(Boolean, server_default='False')
     compile_image_name = Column(String, nullable=True)
-    test_image_name = Column(String)
+    test_image_name: str = Column(String)
 
 
 class Contest(Base, _Exportable):
@@ -94,13 +94,13 @@ class Contest(Base, _Exportable):
         'title', 'description', 'start_time', 'end_time', 'published',
         'penalty']
     __summary_keys__ = ['id', 'title', 'start_time', 'end_time', 'published']
-    id = Column(String, primary_key=True)
-    title = Column(String, nullable=False)
-    description = Column(String, nullable=False)
-    start_time = Column(DateTime(timezone=True), nullable=False)
-    end_time = Column(DateTime(timezone=True), nullable=False)
-    published = Column(Boolean, server_default='False', nullable=False)
-    penalty = Column(Interval, server_default='300', nullable=False)
+    id: str = Column(String, primary_key=True)
+    title: str = Column(String, nullable=False)
+    description: str = Column(String, nullable=False)
+    start_time: datetime.datetime = Column(DateTime(timezone=True), nullable=False)
+    end_time: datetime.datetime = Column(DateTime(timezone=True), nullable=False)
+    published: bool = Column(Boolean, server_default='False', nullable=False)
+    penalty: datetime.timedelta = Column(Interval, server_default='300', nullable=False)
 
     def is_begun(self) -> bool:
         now = datetime.datetime.now(tz=datetime.timezone.utc)
@@ -133,11 +133,11 @@ class Problem(Base, _Exportable):
 
 class TestCase(Base, _Exportable):
     __tablename__ = 'tests'
-    contest_id = Column(String, primary_key=True)
-    problem_id = Column(String, primary_key=True)
-    id = Column(String, primary_key=True)
-    input = Column(LargeBinary, nullable=False)
-    output = Column(LargeBinary, nullable=False)
+    contest_id: str = Column(String, primary_key=True)
+    problem_id: str = Column(String, primary_key=True)
+    id: str = Column(String, primary_key=True)
+    input: bytes = Column(LargeBinary, nullable=False)
+    output: bytes = Column(LargeBinary, nullable=False)
     __table_args__ = (
         ForeignKeyConstraint([contest_id, problem_id],  # type: ignore
                              [Problem.contest_id, Problem.id]),
@@ -149,20 +149,20 @@ class Submission(Base, _Exportable):
     __summary_keys__ = [
         'contest_id', 'problem_id', 'id', 'user_id', 'code_bytes',
         'environment_id', 'status', 'max_time', 'max_memory', 'created']
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    contest_id = Column(String, nullable=False)
-    problem_id = Column(String, nullable=False)
-    user_id = Column(Integer, nullable=False)
-    code = Column(LargeBinary, nullable=False)
-    code_bytes = Column(Integer, nullable=False)
-    environment_id = Column(Integer, nullable=False)
-    status = Column(
+    id: int = Column(Integer, primary_key=True, autoincrement=True)
+    contest_id: str = Column(String, nullable=False)
+    problem_id: str = Column(String, nullable=False)
+    user_id: int = Column(Integer, nullable=False)
+    code: bytes = Column(LargeBinary, nullable=False)
+    code_bytes: int = Column(Integer, nullable=False)
+    environment_id: int = Column(Integer, nullable=False)
+    status: JudgeStatus = Column(
         Enum(JudgeStatus), server_default=JudgeStatus.Waiting.name,
         nullable=False)
     compile_time = Column(Interval, nullable=True)
     max_time = Column(Interval, nullable=True)
     max_memory = Column(Integer, nullable=True)  # KiB
-    created = Column(
+    created: datetime.datetime = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False)
     __table_args__ = (
         ForeignKeyConstraint(
@@ -184,11 +184,11 @@ class Submission(Base, _Exportable):
 
 class JudgeResult(Base, _Exportable):
     __tablename__ = 'judge_results'
-    contest_id = Column(String, primary_key=True)
-    problem_id = Column(String, primary_key=True)
-    submission_id = Column(Integer, primary_key=True)
-    test_id = Column(String, primary_key=True)
-    status = Column(
+    contest_id: str = Column(String, primary_key=True)
+    problem_id: str = Column(String, primary_key=True)
+    submission_id: int = Column(Integer, primary_key=True)
+    test_id: str = Column(String, primary_key=True)
+    status: JudgeStatus = Column(
         Enum(JudgeStatus), server_default=JudgeStatus.Waiting.name,
         nullable=False)
     time = Column(Interval, nullable=True)
@@ -205,15 +205,16 @@ class JudgeResult(Base, _Exportable):
 
 class Worker(Base, _Exportable):
     __tablename__ = 'workers'
-    hostname = Column(String, primary_key=True)
-    pid = Column(Integer, primary_key=True)
-    max_processes = Column(Integer, nullable=False)
-    startup_time = Column(DateTime(timezone=True), nullable=False)
-    last_contact = Column(DateTime(timezone=True), nullable=False)
-    processed = Column(Integer, nullable=False)
-    errors = Column(Integer, nullable=False)
+    hostname: str = Column(String, primary_key=True)
+    pid: int = Column(Integer, primary_key=True)
+    max_processes: int = Column(Integer, nullable=False)
+    startup_time: datetime.datetime = Column(DateTime(timezone=True), nullable=False)
+    last_contact: datetime.datetime = Column(DateTime(timezone=True), nullable=False)
+    processed: int = Column(Integer, nullable=False)
+    errors: int = Column(Integer, nullable=False)
 
 
+'''
 def configure(**kwargs: str) -> None:
     from sqlalchemy import engine_from_config
     global _config
@@ -259,3 +260,4 @@ def _insert_initial_data() -> None:
             salt = token_bytes()
             s.add(User(login_id='admin', name='Administrator', salt=salt,
                        admin=True, password=_kdf('penguinpenguin', salt)))
+'''

@@ -4,26 +4,29 @@ from datetime import datetime, timezone, timedelta
 import unittest
 import unittest.mock
 from functools import partial
-from webtest import TestApp
+
+from fastapi.testclient import TestClient
 from zstandard import ZstdCompressor  # type: ignore
-from penguin_judge.api import app as _app, _kdf
+
+from penguin_judge import config
+from penguin_judge.api import app as _app
+from penguin_judge.api.auth import _kdf
 from penguin_judge.models import (
     User, Environment, Contest, Problem, TestCase, Submission, JudgeResult,
-    Token, JudgeStatus, configure, transaction)
-from . import TEST_DB_URL
+    Token, JudgeStatus, Base)
+from . import transaction, Session
 
-app = TestApp(_app, cookiejar=CookieJar())
+app = TestClient(_app)
 
 
 class TestAPI(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        configure(**{'sqlalchemy.url': TEST_DB_URL}, drop_all=True)
+        Base.metadata.drop_all(Session.bind)
+        Base.metadata.create_all(Session.bind)
 
     def setUp(self):
-        from penguin_judge.main import _configure_app
-        app.reset()
-        _configure_app({})
+        app.cookies.clear()
         tables = (
             JudgeResult, Submission, TestCase, Problem, Contest, Environment,
             Token, User)
@@ -46,85 +49,92 @@ class TestAPI(unittest.TestCase):
         self.admin_headers = {'X-Auth-Token': self.admin_token}
 
     def test_create_user(self):
-        def _invalid(body, setup_token=True, status=400):
-            headers = self.admin_headers if setup_token else {}
-            app.post_json('/users', body, headers=headers,
-                          status=status if setup_token else 401)
-        _invalid({})
-        _invalid({'login_id': 'abc', 'name': 'penguin'})
-        _invalid({'login_id': 'abc', 'password': 'penguinpenguin'})
-        _invalid({'name': 'abc', 'password': 'penguinpenguin'})
-        _invalid({'login_id': 'pe', 'name': 'ぺんぎん',
-                  'password': 'penguinpenguin'})
-        _invalid({'login_id': 'penguin', 'name': 'ぺんぎん',
-                  'password': 'pen'})
-        _invalid({'login_id': 'penguin', 'name': '',
-                  'password': 'penguinpenguin'})
-        resp = app.post_json('/users', {
+        resp = app.post('/users', json={
             'login_id': 'penguin', 'name': 'ぺんぎん', 'password': 'penguinpenguin'
-        }, status=201, headers=self.admin_headers).json
+        }, headers=self.admin_headers)
+        self.assertEqual(resp.status_code, 201)
+        resp = resp.json()
         self.assertEqual(len(list(resp.keys())), 5)
         self.assertIsInstance(resp['id'], int)
         self.assertEqual(resp['login_id'], 'penguin')
         self.assertEqual(resp['name'], 'ぺんぎん')
         self.assertEqual(resp['admin'], False)
         self.assertIn('created', resp)
-        _invalid({'login_id': 'penguin', 'name': 'same',
-                  'password': 'hogehoge'}, status=409)
+
+        resp = app.post('/users', json={
+            'login_id': 'penguin', 'name': 'same', 'password': 'hogehoge'
+        }, headers=self.admin_headers)
+        self.assertEqual(resp.status_code, 409)
 
     def test_auth(self):
-        def _invalid(body, status=400):
-            app.post_json('/auth', body, status=status)
+        def _notfound(body):
+            resp = app.post('/auth', json=body)
+            self.assertEqual(resp.status_code, 401)
 
-        _notfound = partial(_invalid, status=404)
         uid, pw = 'penguin', 'password'
-        app.post_json(
-            '/users', {'login_id': uid, 'name': 'ABC', 'password': pw},
+        resp = app.post(
+            '/users', json={'login_id': uid, 'name': 'ABC', 'password': pw},
             headers=self.admin_headers)
-        _invalid({})
-        _invalid({'login_id': uid})
-        _invalid({'password': pw})
-        _invalid({'login_id': 'a', 'password': pw})
-        _invalid({'login_id': uid, 'password': 'a'})
+        self.assertEqual(resp.status_code, 201)
+        u = resp.json()
         _notfound({'login_id': uid, 'password': 'wrong password'})
         _notfound({'login_id': 'invalid', 'password': pw})
-        resp = app.post_json('/auth', {'login_id': uid, 'password': pw}).json
-        self.assertIsInstance(resp['token'], str)
-        self.assertIsInstance(resp['expires_in'], int)
-
-    def test_get_current_user(self):
-        uid, pw, name = 'penguin', 'password', 'ABC'
-        u = app.post_json(
-            '/users', {'login_id': uid, 'name': name, 'password': pw},
-            headers=self.admin_headers).json
-        token = app.post_json(
-            '/auth', {'login_id': uid, 'password': pw}).json['token']
-        self.assertEqual(u, app.get('/user').json)
-        app.reset()
-        app.authorization = ('Bearer', token)
-        self.assertEqual(u, app.get('/user').json)
-        app.authorization = None
-        self.assertEqual(u, app.get(
-            '/user', headers={'X-Auth-Token': token}).json)
-
-        app.get('/user', status=401)
-        app.get('/user', headers={
-            'X-Auth-Token': b64encode(b'invalid token').decode('ascii')
-        }, status=401)
-        app.get('/user', headers={'X-Auth-Token': b'Z'}, status=401)
-
+        resp = app.post('/auth', json={'login_id': uid, 'password': pw})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(app.get('/user').status_code, 200)
         with transaction() as s:
             s.query(Token).filter(Token.user_id == u['id']).update({
                 'expires': datetime.now(tz=timezone.utc)})
-        app.get('/user', headers={'X-Auth-Token': token}, status=401)
+        self.assertEqual(app.get('/user').status_code, 401)
+
+        app.post('/auth', json={'login_id': uid, 'password': pw})
+        self.assertEqual(app.get('/user').status_code, 200)
+        app.delete('/auth')
+        self.assertEqual(app.get('/user').status_code, 401)
+
+
+    def test_get_current_user(self):
+        uid, pw, name = 'penguin', 'password', 'ABC'
+        u = app.post(
+            '/users', json={'login_id': uid, 'name': name, 'password': pw},
+            headers=self.admin_headers).json()
+        app.post('/auth', json={'login_id': uid, 'password': pw})
+        self.assertEqual(u, app.get('/user').json())
+        app.cookies.clear()
+        self.assertEqual(app.get('/user').status_code, 401)
 
     def test_get_user(self):
-        app.get('/users/invalid_user', status=400)
-        app.get('/users/9999999', status=404)
-        u = app.get('/users/{}'.format(self.admin_id)).json
+        self.assertEqual(app.get('/users/invalid_user').status_code, 422)
+        self.assertEqual(app.get('/users/99999').status_code, 404)
+        u = app.get('/users/{}'.format(self.admin_id)).json()
         self.assertEqual(u['name'], 'Administrator')
         self.assertTrue(u['admin'])
 
+    def test_update_user_info(self):
+        uid, pw, name = 'penguin', 'password', 'ぺんぎん'
+        u = app.post('/users', json={
+            'login_id': uid, 'name': name, 'password': pw,
+        }, headers=self.admin_headers).json()
+        user_id = u['id']
+        u.pop('login_id')
+
+        resp = app.patch(f'/users/{user_id}', json={}, headers=self.admin_headers).json()
+        self.assertEqual(resp, u)
+        resp = app.patch(f'/users/{user_id}', json={'name': 'hoge'}, headers=self.admin_headers).json()
+        self.assertEqual(resp['name'], 'hoge')
+        self.assertEqual(app.patch(f'/users/1234', json={'name': 'hoge'}, headers=self.admin_headers).status_code, 404)
+        self.assertEqual(app.patch(f'/users/1234', json={}, headers=self.admin_headers).status_code, 404)
+
+        pw2 = pw + '!'
+        self.assertEqual(app.patch(f'/users/{user_id}', json={'new_password': pw2}, headers=self.admin_headers).status_code, 200)
+
+        app.post('/auth', json={'login_id': uid, 'password': pw2})
+        self.assertEqual(app.patch(f'/users/{user_id}', json={'new_password': pw}).status_code, 400)
+        self.assertEqual(app.patch(f'/users/{user_id}', json={'old_password': 'invalid', 'new_password': pw}).status_code, 401)
+        self.assertEqual(app.patch(f'/users/{user_id}', json={'old_password': pw2, 'new_password': pw}).status_code, 200)
+        self.assertEqual(app.patch(f'/users/1', json={}).status_code, 403)
+
+    '''
     def test_list_environments(self):
         envs = app.get('/environments').json
         self.assertEqual(envs, [])
@@ -545,3 +555,4 @@ class TestAPI(unittest.TestCase):
             'D': {'penalties': 1, 'pending': False},
             'E': {'penalties': 1, 'pending': False},
         })
+    '''

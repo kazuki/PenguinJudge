@@ -1,10 +1,25 @@
+from contextlib import contextmanager
 import os
+from typing import TYPE_CHECKING, Iterator
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import scoped_session, sessionmaker
 
-def _db_url():
-    if 'PENGUIN_JUDGE_TEST_DB_URL' in os.environ:
-        return os.environ['PENGUIN_JUDGE_TEST_DB_URL']
-    return 'postgresql://penguin:penguin@localhost:5432/penguin_judge_test'
+from penguin_judge import config
 
+if TYPE_CHECKING:
+    from sqlalchemy.orm.session import Session as BaseSession
 
-TEST_DB_URL = _db_url()
+Session = scoped_session(sessionmaker())
+Session.configure(bind=create_engine(config.db_url.replace('+asyncpg', '')))
+
+@contextmanager
+def transaction() -> Iterator['BaseSession']:
+    try:
+        yield Session
+        Session.commit()
+    except Exception:
+        Session.rollback()
+        raise
+    finally:
+        Session.remove()
