@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 import datetime
 import enum
-from typing import Dict, Iterator, Optional, List
+from typing import TYPE_CHECKING, Dict, Iterator, Optional, List
 
 from sqlalchemy import (
     Boolean, Column, DateTime, Integer, String, LargeBinary, Interval, Enum,
@@ -9,6 +9,9 @@ from sqlalchemy import (
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.ext.declarative import declarative_base
 # from sqlalchemy.orm import scoped_session, sessionmaker
+
+if TYPE_CHECKING:
+    from penguin_judge.api.auth import Claims
 
 Base = declarative_base()
 # Session = scoped_session(sessionmaker())
@@ -99,8 +102,8 @@ class Contest(Base, _Exportable):
     description: str = Column(String, nullable=False)
     start_time: datetime.datetime = Column(DateTime(timezone=True), nullable=False)
     end_time: datetime.datetime = Column(DateTime(timezone=True), nullable=False)
-    published: bool = Column(Boolean, server_default='False', nullable=False)
-    penalty: datetime.timedelta = Column(Interval, server_default='300', nullable=False)
+    published: bool = Column(Boolean, nullable=False)
+    penalty: datetime.timedelta = Column(Interval, nullable=False)
 
     def is_begun(self) -> bool:
         now = datetime.datetime.now(tz=datetime.timezone.utc)
@@ -110,9 +113,8 @@ class Contest(Base, _Exportable):
         now = datetime.datetime.now(tz=datetime.timezone.utc)
         return self.end_time <= now
 
-    def is_accessible(self, user_info: Optional[dict]) -> bool:
-        return self.published or (  # type: ignore
-            user_info is not None and user_info['admin'])
+    def is_accessible(self, user_info: Optional['Claims']) -> bool:
+        return self.published or (user_info is not None and user_info.admin)
 
 
 class Problem(Base, _Exportable):

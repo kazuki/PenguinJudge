@@ -1,5 +1,6 @@
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -10,6 +11,8 @@ NAME_MIN_LENGTH = 3
 NAME_MAX_LENGTH = 256
 LOGIN_ID_MIN_LENGTH = NAME_MIN_LENGTH
 LOGIN_ID_MAX_LENGTH = NAME_MAX_LENGTH
+CONTEST_ID_RE = r'[^\~]\w*'
+PROBLEM_ID_RE = CONTEST_ID_RE
 
 
 class Login(BaseModel):
@@ -72,3 +75,51 @@ class EnvironmentUpdate(BaseModel):
     published: Optional[bool]
     compile_image_name: Optional[str]
     test_image_name: Optional[str]
+
+
+class ContestStatus(str, Enum):
+    scheduled = 'scheduled'
+    running = 'running'
+    finished = 'finished'
+
+
+class ContestSummary(BaseModel):
+    id: str = Field(..., regex=CONTEST_ID_RE)
+    title: str = Field(...)
+    start_time: datetime = Field(...)
+    end_time: datetime = Field(...)
+    published: bool = Field(False)
+
+
+class Contest(ContestSummary):
+    penalty: timedelta = Field(...)
+    description: str = Field(...)
+    # problems: List['Problem'] = Field(...)
+
+
+class ContestCreation(ContestSummary):
+    penalty: timedelta = Field(timedelta(seconds=300))
+    description: str = Field(...)
+
+
+class ContestUpdate(BaseModel):
+    title: Optional[str] = Field(None)
+    description: Optional[str] = Field(None)
+    start_time: Optional[datetime] = Field(None)
+    end_time: Optional[datetime] = Field(None)
+    published: Optional[bool] = Field(None)
+    penalty: Optional[timedelta] = Field(None)
+
+
+class ProblemBase(BaseModel):
+    id: str = Field(..., regex=PROBLEM_ID_RE)
+    title: str = Field(...)
+    time_limit: int = Field(..., title='[sec]')
+
+
+class Problem(ProblemBase):
+    contest_id: str = Field(..., regex=CONTEST_ID_RE)
+
+
+class ProblemCreation(Problem):
+    pass

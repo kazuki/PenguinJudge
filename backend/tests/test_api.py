@@ -168,20 +168,27 @@ class TestAPI(unittest.TestCase):
         envs = app.get('/environments').json()
         self.assertEqual(envs, [])
 
-    '''
     def test_create_list_modify_contest(self):
         def _post(body, status=None):
-            return app.post_json('/contests', body, headers=self.admin_headers,
-                                 status=status)
+            resp = app.post('/contests', json=body, headers=self.admin_headers)
+            if status is None:
+                self.assertEqual(resp.status_code // 100 * 100, 200)
+            else:
+                self.assertEqual(resp.status_code, status)
+            return resp
 
-        def _invalid_post(body, status=400):
+        def _invalid_post(body, status=422):
             _post(body, status=status)
 
         def _patch(id, body, status=None):
-            return app.patch_json('/contests/{}'.format(id), body,
-                                  headers=self.admin_headers, status=status)
+            resp = app.patch('/contests/{}'.format(id), json=body, headers=self.admin_headers)
+            if status is None:
+                self.assertEqual(resp.status_code // 100 * 100, 200)
+            else:
+                self.assertEqual(resp.status_code, status)
+            return resp
 
-        def _invalid_patch(id, body, status=400):
+        def _invalid_patch(id, body, status=422):
             _patch(id, body, status=status)
 
         start_time = datetime.now(tz=timezone.utc)
@@ -196,14 +203,14 @@ class TestAPI(unittest.TestCase):
         _invalid_post({})
         _invalid_post(dict(id='a', title='A', description='',
                            start_time=start_time.isoformat(),
-                           end_time=start_time.isoformat()))
+                           end_time=start_time.isoformat()), status=400)
 
-        c2 = _post(c).json
+        c2 = _post(c).json()
         c['published'] = False
         c['penalty'] = 300.0
         self.assertEqual(c, c2)
 
-        _invalid_patch(c['id'], dict(end_time=start_time.isoformat()))
+        _invalid_patch(c['id'], dict(end_time=start_time.isoformat()), status=400)
 
         patch = {
             'title': 'Hoge',
@@ -213,18 +220,19 @@ class TestAPI(unittest.TestCase):
         _invalid_patch('invalid', patch, status=404)
         c3 = dict(c)
         c3.update(patch)
-        c4 = _patch(c['id'], patch).json
+        c4 = _patch(c['id'], patch).json()
         self.assertEqual(c3, c4)
 
-        self.assertEqual(app.get('/contests/{}'.format(c['id'])).json, c4)
-        app.get('/contests/invalid', status=404)
+        self.assertEqual(app.get('/contests/{}'.format(c['id'])).json(), c4)
+        self.assertEqual(app.get('/contests/invalid').status_code, 404)
 
         c4.pop('description')
         c4.pop('penalty')
-        contests = app.get('/contests').json
+        contests = app.get('/contests').json()
         self.assertEqual(len(contests), 1)
         self.assertEqual(contests[0], c4)
 
+    '''
     def test_problem(self):
         def _post(contest_id, body, status=None):
             return app.post_json(
