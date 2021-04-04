@@ -7,7 +7,7 @@ from pydantic import AnyUrl, BaseModel
 class _Config(BaseModel):
     # common
     db_url: AnyUrl = 'postgresql://user:password@localhost:5432/penguin_judge'
-    mq_url: AnyUrl = 'amqp://guest:guest@localhost:5672/penguin_judge'
+    mq_url: AnyUrl = 'amqp://guest:guest@localhost:5672/'
 
     # api
     user_judge_queue_limit: int = 10

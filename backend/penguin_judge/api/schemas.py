@@ -123,3 +123,17 @@ class Problem(ProblemBase):
 
 class ProblemCreation(Problem):
     pass
+
+
+class WorkerStatus(BaseModel):
+    hostname: str = Field(...)
+    pid: int = Field(...)
+    startup_time: datetime = Field(...)
+    last_contact: datetime = Field(...)
+    processed: int = Field(...)
+    errors: int = Field(...)
+
+
+class Status(BaseModel):
+    queued: int = Field(..., title='ジャッジキューに積まれているタスクの数')
+    workers: List[WorkerStatus] = Field(...)
