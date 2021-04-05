@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -137,3 +137,21 @@ class WorkerStatus(BaseModel):
 class Status(BaseModel):
     queued: int = Field(..., title='ジャッジキューに積まれているタスクの数')
     workers: List[WorkerStatus] = Field(...)
+
+
+class RankingProblemEntry(BaseModel):
+    score: Optional[int] = Field(None)
+    time: Optional[float] = Field(None)
+    penalties: int = Field(...)
+    pending: bool = Field(..., description='ジャッジ中(Waiting/Running)の投稿がある場合はTrueとなる')
+
+
+class RankingEntry(BaseModel):
+    ranking: int = Field(...)
+    user_id: int = Field(...)
+    user_name: Optional[str] = Field(None)
+    score: Optional[int] = Field(None)
+    time: Optional[float] = Field(None)
+    penalties: Optional[int] = Field(None)
+    adjusted_time: Optional[float] = Field(None, description='ペナルティを加算後の所要時間')
+    problems: Dict[str, RankingProblemEntry] = Field(..., description='keyは問題ID')

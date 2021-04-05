@@ -396,6 +396,7 @@ class TestAPI(unittest.TestCase):
         with transaction() as s:
             s.query(Contest).update({'end_time': start_time})
         app.get('{}/submissions'.format(prefix))
+    '''
 
     def test_contests_pagination(self):
         test_data = []
@@ -411,28 +412,29 @@ class TestAPI(unittest.TestCase):
                 'end_time': end_time.isoformat(),
                 'published': True,
             }
-            test_data.append(app.post_json(
-                '/contests', c, headers=self.admin_headers).json)
+            test_data.append(app.post(
+                '/contests', json=c, headers=self.admin_headers).json())
 
         test_data.reverse()
 
         resp = app.get('/contests')
-        self.assertEqual(len(resp.json), 20)
+        self.assertEqual(len(resp.json()), 20)
         self.assertEqual(int(resp.headers['X-Page']), 1)
         self.assertEqual(int(resp.headers['X-Per-Page']), 20)
         self.assertEqual(int(resp.headers['X-Total']), 100)
         self.assertEqual(int(resp.headers['X-Total-Pages']), 5)
 
         resp = app.get('/contests?page=2&per_page=31')
-        self.assertEqual(len(resp.json), 31)
+        self.assertEqual(len(resp.json()), 31)
         self.assertEqual(
-            [x['id'] for x in resp.json],
+            [x['id'] for x in resp.json()],
             [x['id'] for x in test_data[31:62]])
         self.assertEqual(int(resp.headers['X-Page']), 2)
         self.assertEqual(int(resp.headers['X-Per-Page']), 31)
         self.assertEqual(int(resp.headers['X-Total']), 100)
         self.assertEqual(int(resp.headers['X-Total-Pages']), 4)
 
+    '''
     def test_submissions_pagination(self):
         test_data = []
         start_time = datetime.now(tz=timezone.utc)
@@ -481,12 +483,13 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(int(resp.headers['X-Per-Page']), 31)
         self.assertEqual(int(resp.headers['X-Total']), 100)
         self.assertEqual(int(resp.headers['X-Total-Pages']), 4)
+    '''
 
     def test_ranking(self):
         salt = b'penguin'
         passwd = _kdf('penguinpenguin', salt)
 
-        app.get('/contests/abc000/rankings', status=404)
+        self.assertEqual(app.get('/contests/abc000/rankings').status_code, 404)
 
         with transaction() as s:
             env = Environment(
@@ -498,6 +501,7 @@ class TestAPI(unittest.TestCase):
                 title='ABC000',
                 description='# Title\nMarkdown Test\n\n* Item0\n* Item1\n',
                 published=True,
+                penalty=timedelta(seconds=300),
                 start_time=datetime.now(tz=timezone.utc),
                 end_time=datetime.now(
                     tz=timezone.utc) + timedelta(days=365)))
@@ -554,7 +558,7 @@ class TestAPI(unittest.TestCase):
                             status=JudgeStatus.Accepted,
                             created=start + d * t, **problem_kwargs[i]))
 
-        ret = app.get('/contests/abc000/rankings').json
+        ret = app.get('/contests/abc000/rankings').json()
         # 未提出者もランキングに載せるようにした
         # self.assertEquals(4, len(ret))
         for i in range(4):
@@ -584,4 +588,3 @@ class TestAPI(unittest.TestCase):
             'D': {'penalties': 1, 'pending': False},
             'E': {'penalties': 1, 'pending': False},
         })
-    '''
